@@ -1,10 +1,11 @@
 # from manim import PI, Circle, Create, FadeOut, Scene, Square, Transform
 from manim import *
+from typing import List, Union
 
 
 class LinearResiduals(Scene):
     def construct(self):
-        coords = [(1, -7), (2, 5), (5, 11), (5, 8), (1, 1), (4, 3), (3, 1), (4, 5)]
+        coords = [(1, -7), (2, 5), (9, 4), (5, 8), (-2, 1), (8, 3), (3, 1), (4, 5)]
         x_min = min([coord[0] for coord in coords]) - 3
         x_max = max([coord[0] for coord in coords]) + 3
         y_min = min([coord[1] for coord in coords]) - 3
@@ -18,7 +19,7 @@ class LinearResiduals(Scene):
         )
         points = VGroup(*[Dot(color=YELLOW).move_to(grid.c2p(coord[0], coord[1])) for coord in coords])
         self.add(grid, points)
-        m, b = ValueTracker(397 / 151), ValueTracker(-731 / 151)
+        m, b = ValueTracker(1/2), ValueTracker(-1)
         # linear_function = grid.plot(lambda x: m.get_value()*x + b.get_value(), x_range=[x_min, x_max, 1])
 
         def get_linear_function():
@@ -60,7 +61,7 @@ class LinearResiduals(Scene):
         loss = DecimalNumber(mse(
             y_true_arr=[coord[1] for coord in coords],
             y_pred_arr=[m.get_value() * coord[0] + b.get_value() for coord in coords]
-        ), num_decimal_places=3, include_sign=True, unit=None)
+        ), num_decimal_places=2, include_sign=True, unit=None)
         loss.add_updater(lambda d: d.set_value(
             mse(
                 y_true_arr=[coord[1] for coord in coords],
@@ -69,13 +70,72 @@ class LinearResiduals(Scene):
         ))
         self.add(moving_residual_vertical_lines, loss.move_to(UP*3 + RIGHT *4))
         self.wait()
-        self.play(m.animate.set_value(-1), b.animate.set_value(5))
+        self.play(m.animate.set_value(-1), b.animate.set_value(5), run_time=3)
 
 
-        # have copies of residual lines that grow and shrink and add + inbetween (to show loss grows when residual lengths are greater
+class ReduceLossEquation(Scene):
+    def construct(self):
+        # CONFIGURE ME
+        sum_term = r"(y_{i} - (m \times x_{i} + b))"
+        left_alignment = LEFT*9
+        scale = 0.6
+        lower_bound = 1
+        upper_bound = 4
 
-"""
-(1/8) * ( (-7 - ((397/151)*1 + (-731/151)))^2 + (5 - ((397/151)*2 + (-731/151)))^2 + (11 - ((397/151)*5 + (-731/151)))^2 + (8 - ((397/151)*5 + (-731/151)))^2 + (1 - ((397/151)*1 + (-731/151)))^2 + (3 - ((397/151)*4 + (-731/151)))^2 + (1 - ((397/151)*3 + (-731/151)))^2 + (5 - ((397/151)*4 + (-731/151)))^2)
+        # base sum symbols
+        sum_symbol = r"\sum_{{i={}}}^{{{}}}"
+        sum_term = sum_term.replace("{i}", "{{{index}}}")
 
-# [https://www.wolframalpha.com/input?i=z+%3D+(1%2F8)+*+(+(-7+-+(x*1+%2B+y))^2+%2B+(5+-+(x*2+%2B+y))^2+%2B+(11+-+(x*5+%2B+y))^2+%2B+(8+-+(x*5+%2B+y))^2+%2B+(1+-+(x*1+%2B+y))^2+%2B+(3+-+(x*4+%2B+y))^2+%2B+(1+-+(x*3+%2B+y))^2+%2B+(5+-+(x*4+%2B+y))^2)](https://www.wolframalpha.com/input?i=z+%3D+%281%2F8%29+*+%28+%28-7+-+%28x*1+%2B+y%29%29%5E2+%2B+%285+-+%28x*2+%2B+y%29%29%5E2+%2B+%2811+-+%28x*5+%2B+y%29%29%5E2+%2B+%288+-+%28x*5+%2B+y%29%29%5E2+%2B+%281+-+%28x*1+%2B+y%29%29%5E2+%2B+%283+-+%28x*4+%2B+y%29%29%5E2+%2B+%281+-+%28x*3+%2B+y%29%29%5E2+%2B+%285+-+%28x*4+%2B+y%29%29%5E2%29)
-"""
+        # create base equation
+        base_eqn_terms = [
+            sum_term.format(index=lower_bound - 1) + " +",
+            rf"{sum_symbol.format(lower_bound, upper_bound)} {sum_term.format(index='i')}"
+        ]
+        base_eqn = MathTex(*base_eqn_terms).scale(scale).align_to(left_alignment, LEFT)
+        base_eqn.set_color_by_tex(sum_term.format(index=lower_bound - 1), BLACK)
+        self.play(Write(base_eqn))
+
+        # expand sum
+        for i in range(lower_bound, upper_bound):
+            # expanded terms for new equation
+            new_eqn_terms = [
+                sum_term.format(index=j) + " +"
+                for j in range(lower_bound-1, i)
+            ]
+            new_eqn_terms_v2 = new_eqn_terms.copy()
+
+            # final term (e.g. sigma) for new equation
+            if i < upper_bound - 1:
+                new_eqn_terms += [
+                    rf"{sum_term.format(index=i) + ' +'} {sum_symbol.format(i + 1, upper_bound)} {sum_term.format(index='i')}"
+                ]
+                new_eqn_terms_v2 += [sum_term.format(index=i) + ' +', rf"{sum_symbol.format(i + 1, upper_bound)} {sum_term.format(index='i')}"]
+            else:
+                last_two_terms = [
+                    rf"{sum_term.format(index=i) + ' + ' + sum_term.format(index=i+1)}"
+                ]
+                new_eqn_terms += last_two_terms
+                new_eqn_terms_v2 += last_two_terms
+
+            new_eqn = MathTex(*new_eqn_terms).scale(scale).align_to(left_alignment, LEFT)
+            new_eqn.set_color_by_tex(sum_term.format(index=lower_bound - 1), BLACK)
+
+            # transform base equation to new equation
+            self.play(*[
+                ReplacementTransform(
+                    base_eqn.get_part_by_tex(base_eqn_terms[j]),
+                    new_eqn.get_part_by_tex(new_eqn_terms[j])
+                ) for j in range(lower_bound-1, i+1)
+            ], run_time=0.75)
+
+            # v2 is same as new equation except it splits the last tex into two
+            new_eqn_v2 = MathTex(*new_eqn_terms_v2).scale(scale).align_to(left_alignment, LEFT)
+            new_eqn_v2.set_color_by_tex(sum_term.format(index=lower_bound - 1), BLACK)
+            base_eqn_terms = new_eqn_terms_v2
+            base_eqn = new_eqn_v2
+            self.play(FadeIn(new_eqn_v2), FadeOut(new_eqn), run_time=0.01)
+
+
+class ThreeDLossSurfaceConstruction(ThreeDScene):
+    def construct(self):
+        pass
