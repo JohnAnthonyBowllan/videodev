@@ -1,20 +1,13 @@
-[tool.poetry]
+[project]
 name = "videodev"
-version = "0.0.1"
-description = "Contains all animation code for my videos and blog posts"
-authors = ["John Bowllan <jbowllan@gmail.com>"]
-
-[tool.poetry.dependencies]
-python = ">=3.10,<3.12"
-pandas = "^1.5.3"
-manim = "^0.17.2"
-pre-commit = "^3.1.0"
-black = "^23.1.0"
-mypy = "^1.0.1"
-isort = "^5.12.0"
-
-[tool.poetry.dev-dependencies]
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+version = "0.1.0"
+description = "Video processing with manim, pandas, etc"
+dependencies = [
+    "pandas",
+    "manim",
+    "pre-commit",
+    "black",
+    "mypy",
+    "isort"
+]
+requires-python = ">=3.10"
