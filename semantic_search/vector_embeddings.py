@@ -184,7 +184,7 @@ class WordEmbeddingScene(MovingCameraScene):
         )
         self.play(Write(cos_bar_text))
         self.wait()
-        angles = [0, 90, 180, 60, 45, 120, 150]
+        angles = [0.5, 90, 180, 60, 45, 120, 150]
         for deg in angles:
             theta = deg * DEGREES
             self.play(angle_b.animate.set_value(theta), run_time=1.5)
@@ -214,7 +214,7 @@ class WordEmbeddingScene(MovingCameraScene):
         self.wait()
         self.play(Transform(cos_bar_text, cos_dist_text))
         self.wait(2)
-        angles= [0, 90, 180, 60, 45, 120, 150]
+        angles= [0.5, 90, 180, 60, 45, 120, 150]
         for deg in angles:
             theta = deg * DEGREES
             self.play(angle_b.animate.set_value(theta), run_time=1.5)
