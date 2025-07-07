@@ -13,4 +13,5 @@ if __name__ == "__main__":
     file = os.getenv("FILE_TO_RUN")
     res = Resolution(os.getenv("RESOLUTION"))
 
-    os.system(f"manim -pq{res.value} {file} {class_name}")
+    # os.system(f"manim -pq{res.value} {file} {class_name}")
+    os.system(f"manim --disable_caching -pq{res.value} {file} {class_name}")

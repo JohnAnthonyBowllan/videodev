@@ -35,23 +35,20 @@ class MatrixScene(Scene):
             for _ in range(n_cols):
                 row.append(ValueTracker(np.random.normal()))
             source_numbers_matrix.append(row)
-        print(source_numbers_matrix[0][0].get_value(),source_numbers_matrix[0][1].get_value())
         source_decimals_matrix = [
             [
                 DecimalNumber(
-                    source_numbers_matrix[i][j].get_value()
-                ).move_to(i * v_buff * DOWN + j * h_buff * RIGHT, DR).scale(0.75)
+                    source_numbers_matrix[i][j].get_value(), include_sign=True
+                ).move_to(i * v_buff * DOWN + j * h_buff * RIGHT, DR).scale(0.7)
                 for j in range(n_cols)
             ]
             for i in range(n_rows)
         ]
-        print(source_decimals_matrix[0][0].get_value(),source_decimals_matrix[0][1].get_value())
+
         for i in range(n_rows):
             for j in range(n_cols):
                 source_decimals_matrix[i][j].add_updater(
-                    lambda d: d.set_value(
-                        source_numbers_matrix[i][j].get_value()
-                    )
+                    lambda d, i=i, j=j: d.set_value(source_numbers_matrix[i][j].get_value())
                 )
         source_matrix = [
             [
@@ -94,16 +91,20 @@ class MatrixScene(Scene):
         r_bracket.stretch_to_fit_height(source_matrix_mobj.height + 0.5)
         # self.add(l_bracket, r_bracket, source_matrix_mobj)
         self.add(l_bracket, r_bracket, source_numbers_matrix_mobj)
+        self.wait()
 
         for k in range(n_transitions):
             value_transitions = []
             for i in range(n_rows):
                 for j in range(n_cols):
-                    value_transitions.append(source_numbers_matrix[i][j].animate.set_value(np.random.normal()))
-            # self.play(*value_transitions)
-
-        # self.play(Transform(source_numbers_matrix_mobj, source_matrix_mobj))
-        # self.wait()
+                    rand = np.random.normal()
+                    value_transitions.append(source_numbers_matrix[i][j].animate.set_value(rand))
+            self.play(*value_transitions, run_time=1.5)
+        self.play(
+            FadeOut(source_numbers_matrix_mobj),
+            FadeIn(source_matrix_mobj)
+        )
+        self.wait()
         for k in range(n_transitions):
             source = matrix_metadata_lst[k]
             dest = matrix_metadata_lst[k+1]
@@ -121,7 +122,7 @@ class MatrixScene(Scene):
                                     radius=(source[i][j][0] + dest[i][j][0])/2,
                                     color=dest[i][j][1]
                                 ).move_to(source_matrix[i][j].get_center()),
-                                run_time=0.75
+                                run_time=1
                             )
                         )
                         dot_transitions_same_color_pt2.append(
@@ -131,7 +132,7 @@ class MatrixScene(Scene):
                                     radius=dest[i][j][0],
                                     color=dest[i][j][1]
                                 ).move_to(source_matrix[i][j].get_center()),
-                                run_time=0.75
+                                run_time=1
                             )
                         )
                     else:
@@ -142,7 +143,7 @@ class MatrixScene(Scene):
                                     radius=min_radius,
                                     color=source[i][j][1]
                                 ).move_to(source_matrix[i][j].get_center()),
-                                run_time=0.75,
+                                run_time=1,
                             )
                         )
                         dot_transitions_diff_color_pt2.append(
@@ -152,11 +153,11 @@ class MatrixScene(Scene):
                                     radius=dest[i][j][0],
                                     color=dest[i][j][1]
                                 ).move_to(source_matrix[i][j].get_center()),
-                                run_time=0.75
+                                run_time=1
                             )
                         )
-            # self.play(*dot_transitions_diff_color_pt1 + dot_transitions_same_color_pt1)
-            # self.play(*dot_transitions_diff_color_pt2 + dot_transitions_same_color_pt2)
+            self.play(*dot_transitions_diff_color_pt1 + dot_transitions_same_color_pt1)
+            self.play(*dot_transitions_diff_color_pt2 + dot_transitions_same_color_pt2)
 
 
 class WordEmbeddingScene(MovingCameraScene):
@@ -448,7 +449,6 @@ class WordEmbeddingScene(MovingCameraScene):
 from manim import *
 import string
 import random
-
 class MatrixZoomAndScan(MovingCameraScene):
     def construct(self):
         rows = 10
@@ -456,49 +456,115 @@ class MatrixZoomAndScan(MovingCameraScene):
         cell_w = 0.5
         cell_h = 0.4
         spacing = 0.05
-
-        # Function to generate alphabetic column headers (a, b, ..., z, aa, ab, etc.)
-        def col_label(n):
-            label = ""
-            while True:
-                n, r = divmod(n, 26)
-                label = chr(ord('a') + r) + label
-                if n == 0:
-                    break
-                n -= 1
-            return label
+        empty_tex_array = "".join(
+            [
+                r"\begin{array}{c}",
+                *4 * [r"\quad \\"],
+                r"\end{array}",
+            ]
+        )
+        tex_left = "".join(
+            [
+                r"\left" + "[",
+                empty_tex_array,
+                r"\right.",
+            ]
+        )
+        tex_right = "".join(
+            [
+                r"\left.",
+                empty_tex_array,
+                r"\right" + "]",
+            ]
+        )
 
         matrix_group = VGroup()
+        source_numbers_matrix = []
+        decimal_matrix = []
 
-        for col in range(cols):
-            col_group = VGroup()
-            # Column header
-            # label = Tex(col_label(col)).scale(0.4)
-            # label.move_to(RIGHT * col * (cell_w + spacing) + UP * (rows * (cell_h + spacing) / 2 + 0.3))
-            # col_group.add(label)
-            # Column values
-            for row in range(rows):
-                value = DecimalNumber(random.uniform(-1, 1), num_decimal_places=2)
-                value.scale(0.3)
-                value.move_to(RIGHT * col * (cell_w + spacing) + DOWN * row * (cell_h + spacing))
-                col_group.add(value)
+        for i in range(rows):
+            row_trackers = []
+            row_decimals = []
+            for j in range(cols):
+                tracker = ValueTracker(np.random.normal())
+                decimal = DecimalNumber(tracker.get_value(), num_decimal_places=2, include_sign=True)
+                decimal.scale(0.3)
+                decimal.move_to(RIGHT * j * (cell_w + spacing) + DOWN * i * (cell_h + spacing))
+
+                # Add updater to keep it in sync with the tracker
+                decimal.add_updater(lambda d, t=tracker: d.set_value(t.get_value()))
+
+                row_trackers.append(tracker)
+                row_decimals.append(decimal)
+            source_numbers_matrix.append(row_trackers)
+            decimal_matrix.append(row_decimals)
+
+        # Flatten into columns
+        for j in range(cols):
+            col_group = VGroup(*[decimal_matrix[i][j] for i in range(rows)])
             matrix_group.add(col_group)
 
         matrix_group.move_to(ORIGIN)
-        self.add(matrix_group)
+        l_bracket = MathTex(tex_left).next_to(matrix_group, LEFT)
+        r_bracket = MathTex(tex_right).next_to(matrix_group, RIGHT)
+
+        l_bracket.stretch_to_fit_height(matrix_group.height + 0.5)
+        r_bracket.stretch_to_fit_height(matrix_group.height + 0.5)
+        self.play(FadeIn(matrix_group), FadeIn(l_bracket), FadeIn(r_bracket))
+
+        vocab_words = [
+            'voids', 'enjoying', 'formula', 'suit', 'promptly', 'typical', 'richly', 'schedule', 'beacon', 'sharks',
+            'hustle', 'dazzler', 'waving', 'become', 'sizzle', 'rocket', 'rulers', 'british', 'dividend', 'vocalize',
+            'sheep', 'gaggle', 'reunion', 'coding', 'invite', 'servant', 'unheated', 'shaking', 'stratify', 'elvis',
+            'insanely', 'shell', 'sighted', 'actions', 'cheery', 'volts', 'babbled', 'appeals', 'commoner', 'rumor',
+            'asking', 'lurking', 'batch', 'entire', 'resolves', 'injury', 'glance', 'shrinks', 'fact', 'times',
+            'flicks', 'tapping', 'initials', 'macbeth', 'shifts', 'lawns', 'anchored', 'hounds', 'pry', 'playoff',
+            'compile', 'debated', 'gauche', 'infect', 'duffers', 'grandeur', 'arable', 'agonized', 'levity', 'activity',
+            'melamine', 'shun', 'matunuck', 'whitcomb', 'disrupt', 'talker', 'files', 'junkies', 'voting', 'party', 'moll',
+            'newlywed', 'daddy', 'treating', 'evelyn', 'resigns', 'climes', 'ignorant', 'korea', 'gris', 'nurture',
+            'primeval', 'frontage', 'norborne', 'birthday', 'bemoan', 'hasher', 'lethargy', '...', 'prevent'
+        ]
+        label_texts = []
+
+        for j, word in enumerate(vocab_words):
+            label = Text(word, font_size=16).rotate(PI/3, axis=OUT)
+            label.next_to(decimal_matrix[0][j], UP, buff=0.1).shift(UP*0.33)
+            label_texts.append(label)
+
+        label_group = VGroup(*label_texts)
+        self.play(Write(label_group))
+        self.wait()
 
         # Step 1: Zoomed out view
         self.play(self.camera.frame.animate.scale(6).move_to(matrix_group.get_center()), run_time=2)
 
         # Step 2: Zoom into first column
-        first_col_center = matrix_group[0][1].get_center()  # Skip the label
-        self.play(self.camera.frame.animate.scale(0.2).move_to(first_col_center), run_time=2)
+        first_col_center = matrix_group[0][rows//3].get_center()
+        self.play(self.camera.frame.animate.scale(0.15).move_to(first_col_center), run_time=2)
 
-        # Step 3: Scan right
-        last_col_center = matrix_group[-1][1].get_center()
-        self.play(self.camera.frame.animate.move_to(last_col_center), run_time=12, rate_func=linear)
+        # Step 3: Animate values changing while scanning
+        new_value_anims = []
+        for i in range(rows):
+            for j in range(cols):
+                new_val = np.random.normal()
+                new_value_anims.append(source_numbers_matrix[i][j].animate.set_value(new_val))
+
+        last_col_center = matrix_group[-1][rows//3].get_center()
+
+        self.play(
+            AnimationGroup(
+                self.camera.frame.animate.move_to(last_col_center),
+                *new_value_anims,
+                lag_ratio=0.0,
+            ),
+            run_time=13,
+            rate_func=linear
+        )
 
         self.wait()
+        self.play(self.camera.frame.animate.scale(1/0.15).move_to(matrix_group.get_center()), run_time=2)
+        self.wait()
+
 
 np.random.seed(1)
 
@@ -710,8 +776,8 @@ class CheckerboardDiskInSphere(ThreeDScene):
         self.play(sphere[111].animate.set_fill(YELLOW).set_opacity(1))
 
         arcs = []
-        primary_arc = (None, None)
-        for j, tile in enumerate(tiles):
+        primary_arc = None
+        for tile in tiles:
             if tile == 111:
                 continue
             center_a = sphere[111].get_center()
@@ -719,30 +785,28 @@ class CheckerboardDiskInSphere(ThreeDScene):
             edge_a = edge_point(center_a)
             edge_b = edge_point(center_b)
             arc = self.create_spherical_arc(edge_a, edge_b, radius, gradient=[WHITE, WHITE], thickness=0.005)
-            arcs.append(arc)
             if tile == 1191:
-                primary_arc = (j, arc)
-        self.play(*[Create(arc) for arc in arcs],run_time=2)
+                primary_arc = arc
+            else:
+                arcs.append(arc)
+        self.play(*[Create(arc) for arc in arcs] + [Create(primary_arc)],run_time=2)
         self.wait(0.5)
         self.play(
-            *[
-                 FadeOut(arc) for i, arc in enumerate(arcs) if i != primary_arc[0]
-             ] + [primary_arc[1].animate.set_color(YELLOW).set_thickness(0.04)] +
+            *[FadeOut(arc) for arc in arcs] + [primary_arc.animate.set_color(YELLOW).set_thickness(0.04)] +
             [sphere[1191].animate.set_fill(YELLOW).set_opacity(1)]
         )
-
         self.wait(0.5)
         self.play(
-            FadeOut(primary_arc[1]),
-            sphere[1191].animate.set_fill(BLUE_E).set_opacity(0.55),
-            sphere[111].animate.set_fill(BLUE_E).set_opacity(0.55)
+            FadeOut(primary_arc),
+            sphere[1191].animate.set_fill(BLUE_C).set_opacity(1),
+            sphere[111].animate.set_fill(BLUE_C).set_opacity(1)
         )
         self.wait(0.5)
         self.move_camera(phi=75 * DEGREES, theta=160 * DEGREES, run_time=2)
         self.play(sphere[531].animate.set_fill(YELLOW).set_opacity(1))
         arcs = []
-        primary_arc = (None, None)
-        for j, tile in enumerate(tiles):
+        primary_arc = None
+        for tile in tiles:
             if tile == 531:
                 continue
             center_a = sphere[531].get_center()
@@ -750,21 +814,20 @@ class CheckerboardDiskInSphere(ThreeDScene):
             edge_a = edge_point(center_a)
             edge_b = edge_point(center_b)
             arc = self.create_spherical_arc(edge_a, edge_b, radius, gradient=[WHITE, WHITE], thickness=0.005)
-            arcs.append(arc)
             if tile == 377:
-                primary_arc = (j, arc)
-        self.play(*[Create(arc) for arc in arcs], run_time=2)
+                primary_arc = arc
+            else:
+                arcs.append(arc)
+        self.play(*[Create(arc) for arc in arcs] + [Create(primary_arc)], run_time=2)
         self.wait(0.5)
         self.play(
-            *[
-                 FadeOut(arc) for i, arc in enumerate(arcs) if i != primary_arc[0]
-             ] + [primary_arc[1].animate.set_color(YELLOW).set_thickness(0.04)] +
+            *[FadeOut(arc) for arc in arcs] + [primary_arc.animate.set_color(YELLOW).set_thickness(0.04)] +
              [sphere[377].animate.set_fill(YELLOW).set_opacity(1)]
         )
         self.wait(0.5)
         self.play(
-            FadeOut(primary_arc[1]),
-            sphere[377].animate.set_fill(BLUE_E).set_opacity(0.55),
-            sphere[531].animate.set_fill(BLUE_E).set_opacity(0.55)
+            FadeOut(primary_arc),
+            sphere[377].animate.set_fill(BLUE_C).set_opacity(1),
+            sphere[531].animate.set_fill(BLUE_C).set_opacity(1)
         )
         self.wait()
