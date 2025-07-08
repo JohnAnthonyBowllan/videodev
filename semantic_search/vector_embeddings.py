@@ -831,3 +831,345 @@ class CheckerboardDiskInSphere(ThreeDScene):
             sphere[531].animate.set_fill(BLUE_C).set_opacity(1)
         )
         self.wait()
+
+
+
+# 3D axes with words with vector being modified with each bit of context (river bank vs. deposit at the bank)
+# then show sample text with corresponding vectors (fixed embeddings), then links between the words changing the embeddings
+# then aggregating into one vector
+# then storing these into a vector DB (with embedding and text and metadata) then doing lookup
+
+class ContextualEmbeddings(ThreeDScene):
+    def construct(self):
+        self.set_camera_orientation(phi=80 * DEGREES, theta=110 * DEGREES)
+        axes = ThreeDAxes(
+            x_range=[-5, 5, 1],
+            y_range=[-5, 5, 1],
+            z_range=[-3, 3, 1],
+            x_length=10,
+            y_length=10,
+            z_length=7,
+            tips=False
+        ).scale(0.75).shift(LEFT*2.5)
+        number_plane = NumberPlane(
+            x_range=[-5, 5, 1],
+            y_range=[-5, 5, 1],
+            background_line_style={
+                "stroke_color": GREY,
+                "stroke_width": 0.6,  # make lines thinner
+                "stroke_opacity": 0.8,  # make lines more transparent
+            },
+        ).set_color(GRAY).scale(0.75).shift(LEFT*2.5)
+        self.add(axes, number_plane)
+
+        vectors = [
+            {"v_tracker": ValueTracker(0), "name": "Bank", "start": ORIGIN, "end": np.array([2, 2, 2]), "color": YELLOW, "label": "Bank"},
+            {"v_tracker": ValueTracker(0), "name": "Δ deposit", "start": np.array([2, 2, 2]), "end": np.array([2, 4, 2]), "color": GRAY_A, "label": "Δ deposit"},
+            {"v_tracker": ValueTracker(0), "name": "Δ money", "start": np.array([2, 4, 2]), "end": np.array([1, 3, 1]), "color": GRAY_A, "label": "Δ money"},
+            {"v_tracker": ValueTracker(0), "name": "Bank (Contextualized)", "start": ORIGIN, "end": np.array([1, 3, 1]), "color": ORANGE, "label": "Bank (Contextualized)"},
+            {"v_tracker": ValueTracker(0), "name": "Δ fished", "start": np.array([2, 2, 2]), "end": np.array([1, -2, 0.5]), "color": GRAY_B, "label": "Δ fished"},
+            {"v_tracker": ValueTracker(0), "name": "Δ river", "start": np.array([1, -2, 0.5]), "end": np.array([-2, -4, 2]), "color": GRAY_B, "label": "Δ river"},
+            {"v_tracker": ValueTracker(0), "name": "Bank (Contextualized)", "start": ORIGIN, "end": np.array([-2, -4, 2]), "color": BLUE, "label": "Bank (Contextualized)"},
+        ]
+
+        arrow_mobjects = VGroup()
+        label_mobjects = VGroup()
+        label_offset = np.array([0, 0, 0.3])  # offset above midpoint
+
+        for v in vectors:
+            arrow = Arrow3D(
+                start=v["start"],
+                end=v["end"],
+                color=v["color"]
+            ).shift(LEFT*2.5)
+            arrow_mobjects.add(arrow)
+            midpoint = (v["start"] + v["end"]) / 2
+            label = Text(v["name"]).scale(0.3).set_color(v['color']).rotate(PI/2, axis=RIGHT).rotate(PI)
+            label.move_to(midpoint + label_offset).shift(LEFT*2.5)
+            label_mobjects.add(label)
+        # self.add(arrow_mobjects)
+        sentence1 = Text(
+            "John deposited money at the bank.",
+            t2c={"bank": YELLOW}
+        ).to_edge(UL).shift(LEFT * 2.5).scale(0.5).set_opacity(0)
+
+        sentence1_mod = Text(
+            "John deposited money at the bank.",
+            t2c={"bank": ORANGE}
+        ).to_edge(UL).shift(LEFT * 2.5).scale(0.5).set_opacity(0)
+
+        sentence2 = Text(
+            "John fished at the river bank.",
+            t2c={"bank": YELLOW}
+        ).next_to(sentence1, DOWN).shift(DOWN * 1.0).scale(0.5).set_opacity(0)
+
+        sentence2_mod = Text(
+            "John fished at the river bank.",
+            t2c={"bank": BLUE}
+        ).next_to(sentence1, DOWN).shift(DOWN * 1.0).scale(0.5).set_opacity(0)
+
+        self.add_fixed_in_frame_mobjects(sentence1, sentence2, sentence1_mod, sentence2_mod)
+
+        # self.add(arrow_mobjects, label_mobjects)
+
+        sentence1_curve_starts = [
+            sentence1.get_left() + DOWN * 0.2 + RIGHT * 0.5,
+            sentence1.get_left() + DOWN * 0.2 + RIGHT * 1.5,
+            sentence1.get_left() + DOWN * 0.2 + RIGHT * 2.5,
+            sentence1.get_left() + DOWN * 0.2 + RIGHT * 3.3,
+            sentence1.get_left() + DOWN * 0.2 + RIGHT * 3.6
+        ]
+        sentence1_curve_thicknesses = [1, 5, 5, 0.5, 0.5]
+        sentence1_end = sentence1.get_right() + DOWN * 0.2 + LEFT * 0.5
+        sentence1_curves = []
+        for start, thickness in zip(sentence1_curve_starts, sentence1_curve_thicknesses):
+            control = (start + sentence1_end) / 2 + DOWN * 0.6
+            curve = CubicBezier(start, control, control, sentence1_end, stroke_color=BLACK, stroke_width=thickness)
+            sentence1_curves.append(curve)
+        self.add_fixed_in_frame_mobjects(*sentence1_curves)
+
+        sentence2_curve_starts = [
+            sentence2.get_left() + DOWN * 0.2 + RIGHT * 0.5,
+            sentence2.get_left() + DOWN * 0.2 + RIGHT * 1.2,
+            sentence2.get_left() + DOWN * 0.2 + RIGHT * 1.7,
+            sentence2.get_left() + DOWN * 0.2 + RIGHT * 2.1,
+            sentence2.get_left() + DOWN * 0.2 + RIGHT * 2.7
+        ]
+        sentence2_curve_thicknesses = [1, 5, 0.5, 0.5, 5]
+        sentence2_end = sentence2.get_right() + DOWN * 0.2 + LEFT * 0.5
+        sentence2_curves = []
+        for start, thickness in zip(sentence2_curve_starts, sentence2_curve_thicknesses):
+            control = (start + sentence2_end) / 2 + DOWN * 0.6
+            curve = CubicBezier(start, control, control, sentence2_end, stroke_color=BLACK, stroke_width=thickness)
+            sentence2_curves.append(curve)
+        self.add_fixed_in_frame_mobjects(*sentence2_curves)
+
+        self.play(FadeIn(arrow_mobjects[0]))
+        self.wait(0.5)
+        self.play(Write(label_mobjects[0]))
+        self.wait(0.5)
+        self.play(sentence1.animate.set_opacity(1))
+        self.wait(0.5)
+        self.play(*[curve.animate.set_color(YELLOW) for curve in sentence1_curves])
+        self.wait(0.5)
+        self.play(FadeIn(arrow_mobjects[1]))
+        self.wait(0.5)
+        self.play(Write(label_mobjects[1]))
+        self.wait(0.5)
+        self.play(FadeIn(arrow_mobjects[2]))
+        self.wait(0.5)
+        self.play(Write(label_mobjects[2]))
+        self.wait(0.5)
+        self.play(FadeIn(arrow_mobjects[3]))
+        self.wait(0.5)
+        self.play(
+            Write(label_mobjects[3]),
+            sentence1.animate.set_opacity(0),
+            sentence1_mod.animate.set_opacity(1)
+        )
+        self.wait()
+        self.play(sentence2.animate.set_opacity(1))
+        self.wait(0.5)
+        self.play(*[curve.animate.set_color(YELLOW) for curve in sentence2_curves])
+
+        self.wait(0.5)
+        self.move_camera(phi=65 * DEGREES, theta=120 * DEGREES, run_time=2)
+        self.wait(0.5)
+        self.play(FadeIn(arrow_mobjects[4]))
+        self.wait(0.5)
+        self.play(Write(label_mobjects[4]))
+        self.wait(0.5)
+        self.play(FadeIn(arrow_mobjects[5]))
+        self.wait(0.5)
+        self.play(Write(label_mobjects[5]))
+        self.wait(0.5)
+        self.play(FadeIn(arrow_mobjects[6]))
+        self.wait(0.5)
+        self.play(
+            Write(label_mobjects[6]),
+            sentence2.animate.set_opacity(0),
+            sentence2_mod.animate.set_opacity(1)
+        )
+        self.wait()
+
+class CombineContextualEmbeddings(Scene):
+    def construct(self):
+        sentence = Text("John deposited money at the bank.").shift(UP*2)
+        self.add(sentence)
+        sentence_curve_locations = [
+            sentence.get_left() + DOWN * 0.2 + RIGHT * 0.5,
+            sentence.get_left() + DOWN * 0.2 + RIGHT * 2.6,
+            sentence.get_left() + DOWN * 0.2 + RIGHT * 5.0,
+            sentence.get_left() + DOWN * 0.2 + RIGHT * 6.5,
+            sentence.get_left() + DOWN * 0.2 + RIGHT * 7.3,
+            sentence.get_right() + DOWN * 0.2 + LEFT * 0.6
+        ]
+
+        # Generate and add column vectors
+        vector_mobjects = []
+        arrows = []
+        for loc in sentence_curve_locations:
+            # Create a random 3D vector
+            vec = np.round(np.random.uniform(-1, 1, size=14), 2)
+            vec_tex = MathTex(
+                r"\begin{bmatrix} " +
+                f"{vec[0]} \\\\ {vec[1]} \\\\ {vec[2]} \\\\ {vec[3]} \\\\ {vec[4]} \\\\ {vec[5]} \\\\ {vec[6]} \\\\ "
+                f"{vec[7]} \\\\ {vec[8]} \\\\ {vec[9]} \\\\ {vec[10]} \\\\ {vec[11]} \\\\ ... \\\\ {vec[13]} \\\\ "
+                r"\end{bmatrix}"
+            ).scale(0.4)
+            vec_tex.next_to(loc, DOWN, buff=0.2).shift(DOWN*2)
+            vector_mobjects.append(vec_tex)
+            arrow = Arrow(start=loc+DOWN*0.05, end=vec_tex.get_top()+UP*0.1, color=YELLOW)
+            arrows.append(arrow)
+        self.play(GrowArrow(arrows[0]))
+        self.play(Create(vector_mobjects[0]), FadeOut(arrows[0]))
+        self.wait(0.5)
+
+        for i in range(1, len(sentence_curve_locations)):
+            curves = []
+            for j in range(i):
+                left = sentence_curve_locations[j]
+                right = sentence_curve_locations[i]
+                control = (left + right) / 2 + DOWN * 0.6
+                curve = CubicBezier(left, control, control, right, stroke_color=YELLOW, stroke_width=4)
+                curves.append(curve)
+            self.play(*[Create(curve) for curve in curves])
+            self.wait()
+            self.play(*[FadeOut(curve) for curve in curves], GrowArrow(arrows[i]))
+            self.play(Create(vector_mobjects[i]), FadeOut(arrows[i]))
+
+        self.wait()
+        self.play(vector_mobjects[1].animate.next_to(vector_mobjects[0], RIGHT))
+        self.play(vector_mobjects[2].animate.next_to(vector_mobjects[1], RIGHT))
+        self.play(vector_mobjects[3].animate.next_to(vector_mobjects[2], RIGHT))
+        self.play(vector_mobjects[4].animate.next_to(vector_mobjects[3], RIGHT))
+        self.play(vector_mobjects[5].animate.next_to(vector_mobjects[4], RIGHT))
+        self.wait(0.5)
+        final_vec = np.round(np.random.uniform(-1, 1, size=14), 2)
+        final_vec_tex = MathTex(
+            r"\begin{bmatrix} " +
+            f"{final_vec[0]} \\\\ {final_vec[1]} \\\\ {final_vec[2]} \\\\ {final_vec[3]} \\\\ {final_vec[4]} \\\\ {final_vec[5]} \\\\ {final_vec[6]} \\\\ "
+            f"{final_vec[7]} \\\\ {final_vec[8]} \\\\ {final_vec[9]} \\\\ {final_vec[10]} \\\\ {final_vec[11]} \\\\ ... \\\\ {final_vec[13]} \\\\ "
+            r"\end{bmatrix}"
+        ).scale(0.4).set_color(YELLOW)
+        final_vec_tex.next_to(vector_mobjects[5], RIGHT, buff=0.2).shift(RIGHT * 2.5)
+        final_arrow = Arrow(
+            start=vector_mobjects[5].get_center()+RIGHT*0.3,
+            end=final_vec_tex.get_center()+LEFT*0.3,
+            color=YELLOW
+        )
+        self.play(GrowArrow(final_arrow))
+        self.play(Create(final_vec_tex))
+        self.wait()
+
+
+class VectorDB(MovingCameraScene):
+    def construct(self):
+        sentences = [
+            "I'm trying to build a reading habit.",
+            "Can you help me get a marketing job?",
+            "I just adopted a dog, struggling to train.",
+            "What's a healthy dinner I can quickly make?",
+            "I'm planning a trip to Japan — any tips?",
+            "My kid keeps waking up at night.",
+            "I’ve been feeling anxious lately.",
+            "I work remotely and want to stay more focused.",
+            "I started learning Python last month.",
+            "Can you make my message sound more direct?",
+            "I recently moved to a Mexico.",
+            "What’s the best way to budget?",
+            "I'm training for my first 5K, any tips?",
+            "Explain how inflation affects interest rates?",
+            "I’m not sleeping well — should I try melatonin?",
+            "Write a short birthday message for my sister.",
+            "I spilled water on my laptop — what should I do?",
+            "I just got promoted!",
+            "Can you recommend a fun podcast?",
+            "I’m learning Spanish and looking for a course.",
+            "Help me draft a polite email to decline a job offer.",
+            "How can I make my small apt feel spacious?",
+            "My son loves dinosaurs — any good books?",
+            "Can you build a personal finance website?",
+        ]
+
+        # Create text objects
+        text_mobs = VGroup(*[
+            Text(s, font_size=28) for s in sentences
+        ])
+
+        # Arrange them in a 5x5 grid with spacing
+        text_mobs.arrange_in_grid(rows=8, cols=3, buff=4, aligned_edge=LEFT)
+        text_mobs.move_to(ORIGIN)
+
+
+        self.add(text_mobs)
+        self.camera.frame.move_to(text_mobs[0])
+
+
+        vector_mobjects = []
+        arrows = []
+        for tex_obj in text_mobs:
+            vec = np.round(np.random.uniform(-1, 1, size=14), 2)
+            vec_tex = MathTex(
+                r"\begin{bmatrix} " +
+                f"{vec[0]} \\\\ {vec[1]} \\\\ {vec[2]}  \\\\ {vec[11]} \\\\ ... \\\\ {vec[13]} \\\\ "
+                r"\end{bmatrix}"
+            ).scale(0.7).set_color(YELLOW)
+            vec_tex.next_to(tex_obj, RIGHT, buff=1.5)
+            vector_mobjects.append(vec_tex)
+            arrow = Arrow(start=tex_obj.get_right() + RIGHT*0.1, end=vec_tex.get_left()+LEFT*0.1, color=YELLOW)
+            arrows.append(arrow)
+
+        self.play(GrowArrow(arrows[0]))
+        self.play(Create(vector_mobjects[0]), FadeOut(arrows[0]))
+        self.wait(0.5)
+        order = [3, 6, 9, 12, 15, 18, 21, 1, 4, 7, 10, 13, 16, 19, 22, 2, 5, 8, 11, 14, 17, 20, 23]
+        for i in order:
+            self.play(
+                AnimationGroup(
+                    self.camera.frame.animate.move_to(text_mobs[i]),
+                ),
+                run_time=1.5,
+                rate_func=linear
+            )
+            self.play(GrowArrow(arrows[i]))
+            self.play(FadeIn(vector_mobjects[i]), FadeOut(arrows[i]))
+            self.wait(0.25)
+        self.play(self.camera.frame.animate.scale(5).move_to(text_mobs), run_time=3)
+        self.play(*[FadeOut(vector_mobjects[i]) for i in range(len(vector_mobjects))])
+
+
+        self.wait(1)
+        text_mobs.generate_target()
+        text_mobs.target.arrange_in_grid(rows=8, cols=3, buff=0.6, aligned_edge=LEFT)
+        text_mobs.target.move_to(ORIGIN)
+
+        self.play(MoveToTarget(text_mobs), run_time=1.5)
+        self.play(self.camera.frame.animate.scale(1/2).move_to(text_mobs[1]), run_time=1)
+        self.wait()
+
+        prompt1 = Text("I want a personalized fitness training program.").next_to(text_mobs, UP, buff=3).scale(1.5)
+        prompt2 = Text("Can you recommend online lessons and a good schedule?").next_to(text_mobs, UP, buff=3).scale(1.5)
+        self.play(Write(prompt1))
+        self.wait()
+        self.play(text_mobs[12].animate.set_color(YELLOW))
+        self.wait()
+        self.play(text_mobs[12].animate.set_color(WHITE))
+        self.wait()
+        self.play(FadeOut(prompt1))
+        self.wait(0.5)
+        self.play(Write(prompt2))
+        self.wait()
+        self.play(
+            text_mobs[5].animate.set_color(YELLOW),
+            text_mobs[8].animate.set_color(YELLOW),
+            text_mobs[19].animate.set_color(YELLOW)
+        )
+        self.wait()
+        self.play(
+            text_mobs[5].animate.set_color(WHITE),
+            text_mobs[8].animate.set_color(WHITE),
+            text_mobs[19].animate.set_color(WHITE)
+        )
+        self.wait()
+
